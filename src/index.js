@@ -1,5 +1,5 @@
 module.exports = function solveSudoku(matrix) {
-  return resolveSudoku(matrix)
+  return resolveSingleSudoku(matrix)
 }
 const SECTOR_SIZE = 3
 const POSSIBLE_NUMBERS = [1,2,3,4,5,6,7,8,9]
@@ -46,8 +46,10 @@ function getCondidats(columnArray, rowArray, sectorArray){
 function checkNull(matrix){
   return matrix.some(array=>array.indexOf(0) !== -1)
 }
-function resolveSudoku(matrix){
-  while(checkNull(matrix)){
+function resolveSingleSudoku(matrix){
+  let count = 0
+  while(checkNull(matrix) && count< 81 ){
+    count++;
     let tmp = matrix.map((array,y)=>
       array.map((value,x)=>{
         let condidats = getCondidats(getCurrentColumn(x,matrix),getCurrentRow(y,matrix),getCurrentSector(x,y,matrix))
@@ -63,14 +65,87 @@ function resolveSudoku(matrix){
   return matrix
 }
 
-console.log(checkNull([
-  [5, 3, 4, 6, 7, 8, 9, 0, 0],
-  [6, 7, 2, 1, 9, 5, 3, 4, 8],
-  [1, 9, 8, 3, 4, 2, 5, 6, 7],
-  [8, 5, 9, 7, 6, 1, 4, 2, 3],
-  [4, 2, 6, 8, 5, 3, 7, 9, 1],
-  [7, 1, 3, 9, 2, 4, 8, 5, 6],
-  [9, 6, 1, 5, 3, 7, 2, 8, 4],
-  [2, 8, 7, 4, 1, 9, 6, 3, 5],
-  [3, 4, 5, 2, 8, 6, 1, 7, 9]
-]))
+function toMatrixWithCondidats(matrix){
+  return matrix.map((array,y)=>
+    array.map((value,x)=>{
+      if(value===0)
+        return getCondidats(getCurrentColumn(x,matrix),getCurrentRow(y,matrix),getCurrentSector(x,y,matrix))
+      return value
+    })
+  )
+}
+function resolveTwo(blockWithCondidats){
+    blockWithCondidats.map(block=>{
+      let equals = equalCondidatesInArray(toArrayWithCondidats(block)).reduce((acc,value)=> typeof value === 'object'?acc.concat(value):acc,[])
+      console.log(deleteEmptyCondidates(checkSingleCondidate(reduceCondidatsInBlock(block,equals))))
+      // treaples?
+    })
+}
+
+function checkSingleCondidate(blocks){
+  return blocks.map(block=> block.map(value=> (typeof value === 'object' && value.length===1)?value[0]:value))
+}
+
+function deleteEmptyCondidates(blocks){
+  return blocks.map(block=> block.map(value=> (typeof value === 'object' && value.length===0)?0:value))
+}
+function reduceCondidatsInBlock(block,array ){
+  return block.map(condidate=>
+    condidate.map(value=>{
+      if(typeof value === 'object')
+        return deleteOneArrayFromAnother(array,value)
+      return value
+    })
+  )
+}
+function equalCondidatesInArray(array){
+  return array
+          .map(value=>JSON.stringify(value))
+          .filter((condidate,i,arr)=>arr.indexOf(condidate,i+1)!==-1)
+          .map(value=>JSON.parse(value))
+}
+function toArrayWithCondidats(blocks){
+  let j=0
+  let res = []
+  blocks.map(block=>{
+    for(let i=0;i<3;i++){
+      if(typeof block[i] === 'object')
+        res[j++]=block[i]
+    }
+  })
+  return res
+}
+
+function getBlocks(matrix){
+  let res= []
+  for(let y=0;y<3;y++){
+    for(let x=0;x<3;x++){
+      res.push([[matrix[SECTOR_SIZE*y][SECTOR_SIZE*x],matrix[SECTOR_SIZE*y][SECTOR_SIZE*x+1], matrix[SECTOR_SIZE*y][SECTOR_SIZE*x+2]],
+                [matrix[SECTOR_SIZE*y+1][SECTOR_SIZE*x],matrix[SECTOR_SIZE*y+1][SECTOR_SIZE*x+1],matrix[SECTOR_SIZE*y+1][SECTOR_SIZE*x+2]],
+                [matrix[SECTOR_SIZE*y+2][SECTOR_SIZE*x],matrix[SECTOR_SIZE*y+2][SECTOR_SIZE*x+1],matrix[SECTOR_SIZE*y+2][SECTOR_SIZE*x+2]]])
+      }
+  }
+  return res
+}
+
+function deleteOneArrayFromAnother(arrayToDelete,matchArray){
+  return matchArray.filter( function( el ) {
+    return arrayToDelete.indexOf( el ) < 0;
+  } );
+}
+
+resolveTwo( getBlocks(toMatrixWithCondidats([
+  [6, 5, 0, 7, 3, 0, 0, 8, 0],
+  [0, 0, 0, 4, 8, 0, 5, 3, 0],
+  [8, 4, 0, 9, 2, 5, 0, 0, 0],
+  [0, 9, 0, 8, 0, 0, 0, 0, 0],
+  [5, 3, 0, 2, 0, 9, 6, 0, 0],
+  [0, 0, 6, 0, 0, 0, 8, 0, 0],
+  [0, 0, 9, 0, 0, 0, 0, 0, 6],
+  [0, 0, 7, 0, 0, 0, 0, 5, 0],
+  [1, 6, 5, 3, 9, 0, 4, 7, 0]
+])))
+
+// console.log(deleteOneArrayFromAnother([1,2],[1,2,3,4,5,6]))
+
+// console.log(equalCondidatesInArray([[1,2,3],[0,0],[1,2],[1,2],[1,1,1,1],[1,1,1,1]]))
