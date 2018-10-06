@@ -1,132 +1,122 @@
 let {
   deleteOneArrayFromAnother,
-  entriesInArray
+  entriesInArray,
+  unique,
+  toSimpleArray,
+  toArrayWithCondidats,
+  toArrayWithCondidatsFromBlock,
+  blocksToArray,
+  blockToArray
 } = require('./array.helper')
+let {
+  getBlocksFromSimpleMatrix,
+  toMatrixFromBlocks,
+  transpose,
+  toSimpleMatrix,
+  toMatrixWithCondidats
+} = require('./matrix.helper')
 let {
   getCurrentRow,
   getCurrentColumn,
   getCurrentSector,
-  getBlocksFromSimpleMatrix,
-  toMatrixFromBlocks,
-  transpose
-} = require('./matrix.helper')
-
-function toSimpleMatrix(matrixWithCondidats) {
-  return matrixWithCondidats.map(row => row.map(value => typeof value === 'object' ? 0 : value))
-}
-
-function toMatrixWithCondidats(matrix) {
-  return matrix.map((array, y) =>
-    array.map((value, x) => {
-      if (value === 0)
-        return getCondidats(getCurrentColumn(x, matrix), getCurrentRow(y, matrix), getCurrentSector(x, y, matrix))
-      return value
-    })
-  )
-}
+  getCondidats,
+  isCondidat
+} = require('./condidats.helper')
+let { resolveSingleSudoku } = require("./singles");
+let cloneDeep = require('lodash').cloneDeep
+const compose = (...fns) => fns.reduce((f, g) => (...args) => f(g(...args)));
 module.exports = function solveSudoku(matrix) {
-  return resolveTwo(resolveSingleSudoku(matrix))
-}
-const POSSIBLE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-
-function inCurrentColumnRowOrSection(value, array) {
-  return array.indexOf(value) !== -1
+  return resolveTwo(matrix)
 }
 
-function getCondidats(columnArray, rowArray, sectorArray) {
-  let obj = {}
-  columnArray.map(value => {
-    obj[value] = true
+function resolveTwo(matrix) {
+  compose(
+    console.log,
+    updateCondidates,
+    reduceSingleCondidats,
+    resolveRows,
+    resolveColumns,
+    resolveBlocks,
+    toMatrixWithCondidats
+  )(matrix)
+}
+
+function reduceSingleCondidats(matrix) {
+  return matrix.map((row,y) => row.map((value,x) =>{
+    if(isCondidat(value) && value.length === 1){
+      return value[0]
+    }
+    return value
+    }))
+}
+function resolveColumns(matrixWithCondidats) {
+  return compose(
+    transpose,
+    resolveRows,
+    transpose
+  )(matrixWithCondidats)
+}
+
+function resolveBlocks(matrixWithCondidats) {
+  return compose(
+    resolveRows,
+    blocksToArray,
+    getBlocksFromSimpleMatrix
+  )(matrixWithCondidats)
+}
+
+function resolveRows(matrixWithCondidats) {
+  return matrixWithCondidats.map(row => {
+    return reduceDoubles(row, findDoublesInArray(row))
   })
-  rowArray.map(value => {
-    obj[value] = true
-  })
-  sectorArray.map(value => {
-    obj[value] = true
-  })
-
-  return POSSIBLE_NUMBERS.filter(value => Object.keys(obj).indexOf(String(value)) === -1)
+}
+function findDoublesInArray(array) {
+  return unique(array
+    .map(value => JSON.stringify(value))
+    .filter((value, i, array) => JSON.parse(value).length === 2 && entriesInArray(array, value, 2)))
+    .map(value => JSON.parse(value))
 }
 
-function checkNull(matrix) {
-  return matrix.some(array => array.indexOf(0) !== -1)
+function reduceDoubles(array, doubles) {
+  return array.map(value => {
+    if (isCondidat(value)) {
+      for (let i = 0; i < doubles.length; i++) {
+        if (!equalToDouble(doubles[i], value)) {
+          value = deleteOneArrayFromAnother(doubles[i], value)
+        }
+      }
+    }
+    return value
+  })
 }
 
-function resolveSingleSudoku(matrix) {
-  let count = 0
-  while (checkNull(matrix) && count < 9) {
-    count++;
-    let tmp = matrix.map((array, y) =>
-      array.map((value, x) => {
-        let condidats = getCondidats(getCurrentColumn(x, matrix), getCurrentRow(y, matrix), getCurrentSector(x, y, matrix))
-        if (value === 0 && (condidats.length === 1))
-          return condidats[0]
-        return value
-      })
-    )
-    matrix = tmp
-  }
+function equalToDouble(double, value) {
+  return value.length !== 1 && JSON.stringify(double) === JSON.stringify(value)
+}
+
+function updateCondidates(matrixWithCondidats) {
+  let matrix =  cloneDeep(matrixWithCondidats)
+  do {
+    console.log('-------------')
+    console.log(toSimpleMatrix(matrix))
+    console.log(toMatrixWithCondidats(toSimpleMatrix(matrix)))
+    matrix  = toMatrixWithCondidats(toSimpleMatrix(reduceSingleCondidats(matrix)))
+  }while(isSingleCondidatInMatrix(matrix) || canReduceMatrix(matrix))
   return matrix
 }
 
-
-function resolveTwo(matrix) {
-  let blocks = getBlocksFromSimpleMatrix(toMatrixWithCondidats(matrix)).map(block => {
-    let equals = equalCondidatesInArray(toArrayWithCondidats(block))
-    return checkSingleCondidate(reduceCondidatsInBlock(block, equals))
-  })
-
-  matrix =  resolveSingleSudoku(toSimpleMatrix(toMatrixFromBlocks(blocks)))
-  let matrixWithCondidats = toMatrixWithCondidats(matrix).map(row=>reduceCondidatsInArray(row,equalCondidatesInArray(row) ))
-  matrix = resolveSingleSudoku(toSimpleMatrix(matrixWithCondidats))
-  matrixWithCondidats = toMatrixWithCondidats(transpose( matrix)).map(row=>reduceCondidatsInArray(row,equalCondidatesInArray(row) ))
-  matrix = transpose(resolveSingleSudoku(toSimpleMatrix( matrixWithCondidats)))
-  console.log(matrix)
-  return  matrix
+function isSingleCondidatInMatrix(matrix){
+  return matrix.some(array=>array.some(value=> isCondidat(value) && value.length === 1))
 }
 
-function checkSingleCondidate(blocks) {
-  return blocks.map(block => block.map(value => (typeof value === 'object' && value.length === 1) ? value[0] : value))
+function canReduceMatrix(matrix){
+  return matrix.some((row,y)=>row.some((value,x)=> canReduceCondidate(value,y,x,matrix)))
 }
 
-function reduceCondidatsInBlock(block, array) {
-  return block.map(condidate =>
-    condidate.map(value => {
-      if (typeof value === 'object')
-        return deleteOneArrayFromAnother(array, value).length === 0 ? 0 : deleteOneArrayFromAnother(array, value)
-      return value
-    })
-  )
+function canReduceCondidate(condidate,y,x,matrix){
+  if(isCondidat(condidate)){
+    return condidate.some(value=>{
+      return (getCurrentColumn(x,matrix).indexOf(value)!==-1 ||  getCurrentRow(y,matrix).indexOf(value)!==-1 || getCurrentSector(x,y,matrix).indexOf(value)!==-1)})}
+  
+  return false
 }
-
-function reduceCondidatsInArray(values,array){
-  return values.map(value=>{
-    if (typeof value === 'object'){
-        return deleteOneArrayFromAnother(array, value).length === 0 ? 0 : deleteOneArrayFromAnother(array, value)
-      }return value
-  })
-}
-function equalCondidatesInArray(array) {
-  return array
-    .map(value => JSON.stringify(value))
-    .filter((condidate, i, arr) =>  !!entriesInArray(arr,condidate,4) ||  !!entriesInArray(arr,condidate,3) || !!entriesInArray(arr,condidate,2))
-    .map(value => JSON.parse(value))
-    .reduce((acc, value) => typeof value === 'object' ? acc.concat(value) : acc, [])
-}
-
-function toArrayWithCondidats(blocks) {
-  let j = 0
-  let res = []
-  blocks.map(block => {
-    for (let i = 0; i < 3; i++) {
-      if (typeof block[i] === 'object')
-        res[j++] = block[i]
-    }
-  })
-  return res
-}
-
-// console.log(entriesInArray([1,2,4,5,6,2,7,12,1],2))
-// console.log(deleteOneArrayFromAnother([1,2],[1,2,3,4,5,6]))
-
-// console.log(equalCondidatesInArray([[1,2,3],[0,0],[1,2],[1,2],[1,1,1,1],[1,1,1,1]]))
