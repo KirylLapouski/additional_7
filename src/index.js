@@ -18,7 +18,7 @@ let {
   isCondidat
 } = require('./condidats.helper')
 let { resolveSingleSudoku } = require("./singles");
-let cloneDeep = require('lodash').cloneDeep
+// let cloneDeep = require('lodash').cloneDeep
 const compose = (...fns) => fns.reduce((f, g) => (...args) => f(g(...args)));
 module.exports = function solveSudoku(matrix) {
   return resolveTwo(matrix)
@@ -128,7 +128,7 @@ function equalToDouble(double, value) {
 }
 
 function updateCondidates(matrixWithCondidats) {
-  let matrix = cloneDeep(matrixWithCondidats)
+  let matrix = matrixWithCondidats
   do {
     matrix = reduceSingleCondidats(toMatrixWithCondidats(toSimpleMatrix(matrix)))
   } while (isSingleCondidatInMatrix(matrix) || canReduceMatrix(matrix))
